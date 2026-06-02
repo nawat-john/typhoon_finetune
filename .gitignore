@@ -1,0 +1,29 @@
+# --- secrets (NEVER commit) ---
+.env
+.env.*
+!.env.example
+
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# --- editor / OS ---
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+
+# --- generated data (YouTube transcripts are copyrighted; large; reproducible) ---
+data/
+
+# --- trained model + training artifacts (regenerable from the pipeline) ---
+typhoon2_slapper_lora/
+outputs/
+unsloth_compiled_cache/
+
+# --- misc ---
+*.log
+*.tar.gz
