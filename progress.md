@@ -36,7 +36,7 @@ Tracking the build from `typhoon2_finetune_plan.md`. Goal: QLoRA fine-tune `scb1
 ### Phase 2 — Clean (most important)
 - [x] `scripts/clean.py` — regex strip `[...]`/`(...)`, collapse repeated chars, normalize spaces → `data/cleaned_transcripts.json` (1.9% removed; source was clean)
 - [x] `scripts/restore_punct.py` — Thai punctuation + sentence segmentation via **Gemini**, with chunking, hash-cache (resumable), **multi-key × multi-model cycling**, graceful stop on quota, and a validity guard → `data/punctuated_transcripts.json`. Quality verified excellent (natural spacing, verbatim words, `?`/`ๆ` correct).
-- [~] **Milestone 2:** **6/11 clips** fully punctuated (`149,085` chars, ~1,171 sentences, only ~2.5% lines still raw). Enough to drive Phase 3–4 "start small". Remaining ~72 chunks finish on the next fresh-quota day.
+- [x] **Milestone 2 — DONE:** **11/11 clips** fully punctuated (`311,599` chars, **3,277 sentences**). Finished the remaining 61 chunks **by hand (Claude as the punctuator)** instead of waiting on Gemini quota — see `scripts/merge_punct.py` + `data/punct_work/`. Every chunk passed the same verbatim+space-ratio guard the Gemini path uses (space-ratio 0.025–0.060, all < 0.12).
 - [x] Rejected local `pythainlp` crfcut fallback — needs space-stripped input which mangles mixed Thai/English (คอนเทนต์→คทent) and gives run-on segments. Gemini quality much better.
 
 > **Gemini reality — free tier = 20 requests/day per model, PER GOOGLE PROJECT** (`GenerateRequestsPerDayPerProject**PerModel**-FreeTier`, quotaValue 20). ⚠️ The pool is **per project, NOT per key** — confirmed empirically (two keys from the same account gave 33 then only 13 more calls = shared pool). So **making new keys in the same account does NOT add quota.** ~5 models ⇒ ~**100 free calls/day per project**.
@@ -59,14 +59,15 @@ Tracking the build from `typhoon2_finetune_plan.md`. Goal: QLoRA fine-tune `scb1
 - [x] **Milestone 4:** training completes + adapter saved. ✅
 
 > Script gotchas baked in: (1) Unsloth SFTTrainer needs a pre-rendered `text` field — we map `messages`→`apply_chat_template(tokenize=False)` and set `dataset_text_field="text"`; (2) force UTF-8 stdout (`sys.stdout.reconfigure`) or Unsloth's 🦥 emoji prints crash on the Thai cp874 console; (3) trl 0.23 uses `SFTConfig` with `max_length` (not `max_seq_length`).
-- [ ] Scale to full dataset
-- [ ] Save LoRA adapter (`typhoon2_youtuber_lora`)
-- [ ] **Milestone 4:** full training run completes
+- [x] Scale to full dataset — **768 examples (730/38)** from all 11 clips (was 302)
+- [x] Save LoRA adapter → `typhoon2_slapper_lora/`
+- [x] **Milestone 4 (v2):** 92 steps / 2 ep, loss **2.69→1.94**, peak VRAM **3.01 GB**, ~21.5 min ✅
 
 ### Phase 5 — Evaluate
 - [x] `scripts/test_infer.py` — loads base+adapter (4-bit), generates on slapper-style prompts (`--base` to compare).
 - [x] **Style transfer = clear success.** Outputs are full of his verbal tics — "เออ", "เอ้ย", "ชิบหายเลยมึง", "อ่ะ...นะครับ", "กู", "อืม" — first-person rambling gameplay narration (selling cars/items, coins, ปลดล็อก). Sounds like him.
-- [~] **Coherence:** 3/4 replies coherent & on-style; **1/4 degenerated into a char-repeat loop** ("ยยยยย…"). Mild instability — expected with only 302 examples + sampling.
+- [~] **Coherence (v1):** 3/4 coherent; 1/4 looped ("ยยยยย…") with only 302 examples.
+- [ ] **Re-evaluate (v2):** retrained on 768 examples, loss 1.94 — expect better coherence. Run `test_infer.py` to verify.
 - [ ] Mitigations (next): add `repetition_penalty`/`no_repeat_ngram_size` at generation (added to `test_infer.py`); and the real fix = **more/cleaner data** (finish 11-clip punctuation + more clips). Loss declined smoothly so it's not classic overfit — don't slash epochs yet.
 
 ### Phase 6 — Deploy — SKIPPED (user: no deploy)
@@ -86,6 +87,8 @@ Tracking the build from `typhoon2_finetune_plan.md`. Goal: QLoRA fine-tune `scb1
 - [ ] Watch Gemini free-tier RPD across Phase 2 + Phase 3 — if flash-lite quota runs low, spread work across days or pull a Thai punctuation model locally
 
 ## Log
+- 2026-06-06 — **Phase 4 v2 COMPLETE.** Rebuilt dataset from all 11 clips → 768 examples (768 from 302). Retrained QLoRA: 92 steps/2ep, loss 2.69→**1.94** (vs 2.11 before), peak VRAM 3.01 GB, ~21.5 min. Adapter saved → `typhoon2_slapper_lora/`. Next: test_infer.py to evaluate coherence improvement.
+- 2026-06-06 — **Phase 2 COMPLETE (11/11 punctuated).** Instead of waiting for Gemini fresh-quota days, punctuated the remaining 61 chunks by hand. Added `scripts/merge_punct.py` (validates each hand-punctuated chunk with the *same* verbatim char-ratio + space-ratio guard, injects into `punct_cache.json` by content hash, reassembles `punctuated_transcripts.json`). Workflow: `merge_punct.py` dumps pending chunks → `data/punct_work/in/NN.txt`; punctuated output written to `data/punct_work/out/NN.txt`; re-run merge to fold in + reassemble. Final: **311,599 chars / 3,277 sentences** (was 149k/1,171). Next: regenerate `dataset.jsonl` from all 11 clips (Phase 3) → retrain (Phase 4) for better coherence.
 - 2026-06-02 — Set up tracking. Confirmed env `D:\Code\.venv` (Py3.12.13, torch2.6.0+cu124) and RTX 3050 4GB.
 - 2026-06-02 — **Phase 0 complete.** Installed full unsloth QLoRA stack into the venv; pinned versions in `requirements.lock.md`. Verified unsloth import + bitsandbytes 4-bit GPU forward. Decided: train locally on the 3050. Hit & resolved 3 dependency traps (pyarrow 24 segfault → 19.0.1; unsloth needs older transformers/trl/datasets; torchao 0.17→0.9 for torch 2.6).
 - 2026-06-02 — **Phase 1 complete.** Resolved channel = `@slapperch`. Added `scripts/list_videos.py` + `scripts/fetch_transcripts.py` (installed `yt-dlp`). Listed 3066 videos; fetched newest 11 → `data/raw_transcripts.json` (~8 h, 314k chars). youtube-transcript-api 1.2.4 uses the new `ytt.list()/ytt.fetch()` API. No rate-limiting at sleep=1.5s. Next: Phase 2 cleaning.
