@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>slappy-ai — Fine-tune Typhoon2 ให้พูดสไตล์แคสต์เกม</title>
+  <style>
+    :root {
+      --bg: #0d0d0f;
+      --surface: #16161a;
+      --border: #2a2a32;
+      --accent: #7c6ef7;
+      --accent2: #e05c97;
+      --text: #e8e8f0;
+      --muted: #7a7a8e;
+      --green: #4ade80;
+      --yellow: #facc15;
+      --red: #f87171;
+      --code-bg: #1e1e26;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', 'Noto Sans Thai', system-ui, sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    /* ───── layout ───── */
+    .container { max-width: 860px; margin: 0 auto; padding: 0 24px; }
+
+    /* ───── hero ───── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 64px 0 48px;
+      text-align: center;
+    }
+    .tag {
+      display: inline-block;
+      background: rgba(124,110,247,.15);
+      border: 1px solid rgba(124,110,247,.35);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 99px;
+      margin-bottom: 20px;
+    }
+    h1 {
+      font-size: clamp(1.9rem, 5vw, 3rem);
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 16px;
+    }
+    h1 span { color: var(--accent); }
+    .hero-sub {
+      color: var(--muted);
+      max-width: 560px;
+      margin: 0 auto 32px;
+      font-size: 1rem;
+    }
+    .badges { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .badge .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      flex-shrink: 0;
+    }
+    .badge .dot.yellow { background: var(--yellow); }
+
+    /* ───── sections ───── */
+    section { padding: 56px 0; border-bottom: 1px solid var(--border); }
+    section:last-of-type { border-bottom: none; }
+    h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h2 .num {
+      width: 28px; height: 28px;
+      background: rgba(124,110,247,.2);
+      border: 1px solid rgba(124,110,247,.4);
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    /* ───── pipeline ───── */
+    .pipeline {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 20px;
+    }
+    .pipe-step {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .pipe-step.highlight {
+      border-color: rgba(124,110,247,.5);
+      background: rgba(124,110,247,.08);
+      color: #a89cf7;
+    }
+    .arrow { color: var(--muted); font-size: 16px; padding: 0 2px; }
+
+    /* ───── stat cards ───── */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 18px;
+    }
+    .stat-val {
+      font-size: 1.6rem;
+      font-weight: 800;
+      line-height: 1.1;
+      color: var(--accent);
+    }
+    .stat-val.green { color: var(--green); }
+    .stat-val.yellow { color: var(--yellow); }
+    .stat-label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+    /* ───── comparison ───── */
+    .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 600px) { .compare { grid-template-columns: 1fr; } }
+    .chat-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .chat-header {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .chat-header .chip {
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-size: 11px;
+    }
+    .chip.base { background: rgba(248,113,113,.15); color: var(--red); border: 1px solid rgba(248,113,113,.3); }
+    .chip.tuned { background: rgba(74,222,128,.15); color: var(--green); border: 1px solid rgba(74,222,128,.3); }
+    .chat-body { padding: 16px; }
+    .msg { margin-bottom: 12px; font-size: 14px; line-height: 1.65; }
+    .msg:last-child { margin-bottom: 0; }
+    .msg-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .msg-bubble {
+      background: var(--code-bg);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text);
+    }
+    .msg-bubble.user { color: var(--muted); font-style: italic; }
+
+    /* ───── code block ───── */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 18px;
+      overflow-x: auto;
+      font-size: 13px;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      line-height: 1.6;
+    }
+    code { font-family: inherit; }
+    .comment { color: #4a4a5e; }
+    .kw { color: #7c6ef7; }
+    .str { color: #4ade80; }
+    .cmd { color: #facc15; }
+
+    /* ───── loss chart ───── */
+    .loss-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    svg.loss-chart { width: 100%; height: 140px; overflow: visible; }
+    .chart-label { font-size: 12px; color: var(--muted); text-anchor: middle; }
+    .axis-label { font-size: 11px; fill: var(--muted); }
+
+    /* ───── callout ───── */
+    .callout {
+      display: flex;
+      gap: 12px;
+      background: rgba(124,110,247,.07);
+      border: 1px solid rgba(124,110,247,.25);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-top: 20px;
+      font-size: 14px;
+    }
+    .callout-icon { font-size: 18px; flex-shrink: 0; line-height: 1.4; }
+    .callout p { color: var(--muted); }
+    .callout strong { color: var(--text); }
+
+    /* ───── footer ───── */
+    footer {
+      text-align: center;
+      padding: 40px 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* ───── util ───── */
+    p + p { margin-top: 12px; }
+    .muted { color: var(--muted); font-size: 14px; }
+    .mt { margin-top: 16px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- ─── HERO ─── -->
+  <header>
+    <div class="tag">Thai LLM Fine-tune</div>
+    <h1>Fine-tune <span>Typhoon2-3B</span><br>ให้พูดสไตล์แคสต์เกม</h1>
+    <p class="hero-sub">
+      QLoRA fine-tune <code>scb10x/llama3.2-typhoon2-3b-instruct</code> จาก YouTube transcript
+      ของช่อง <strong>slapper</strong> — ทำให้โมเดลพูดเหมือนนักแคสต์จริงๆ
+      ใช้ VRAM แค่ <strong>4 GB</strong>
+    </p>
+    <div class="badges">
+      <span class="badge"><span class="dot"></span> Training complete — loss 1.94</span>
+      <span class="badge"><span class="dot yellow"></span> RTX 3050 4GB · peak 3.0 GB VRAM</span>
+      <span class="badge">768 training examples · 11 clips</span>
+      <span class="badge">QLoRA · 4-bit · paged_adamw_8bit</span>
+    </div>
+  </header>
+
+  <!-- ─── PIPELINE ─── -->
+  <section>
+    <h2><span class="num">1</span>Pipeline</h2>
+    <div class="pipeline">
+      <span class="pipe-step">list_videos</span><span class="arrow">→</span>
+      <span class="pipe-step">fetch_transcripts</span><span class="arrow">→</span>
+      <span class="pipe-step highlight">clean + restore_punct</span><span class="arrow">→</span>
+      <span class="pipe-step">build_dataset</span><span class="arrow">→</span>
+      <span class="pipe-step highlight">train (QLoRA)</span><span class="arrow">→</span>
+      <span class="pipe-step">chat</span>
+    </div>
+    <p class="muted">
+      ดึง transcript ภาษาไทยจาก YouTube auto-caption → ทำความสะอาด + เติมวรรคตอน (Gemini) →
+      จับคู่เป็น instruction dataset → เทรน QLoRA adapter → คุยได้ทันที
+    </p>
+
+    <div class="callout mt">
+      <span class="callout-icon">⚡</span>
+      <p>
+        <strong>ขั้นสำคัญที่สุดคือการเติมวรรคตอน</strong> — auto-caption ไม่มีเครื่องหมายและเว้นวรรคทุกคำ
+        LLM แปลงให้เป็นภาษาธรรมชาติโดย<em>คงคำเดิมทุกคำ</em> เพื่อให้โมเดลเรียน "จังหวะการพูด" ไม่ใช่แค่คำศัพท์
+      </p>
+    </div>
+  </section>
+
+  <!-- ─── DATA ─── -->
+  <section>
+    <h2><span class="num">2</span>ข้อมูล</h2>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-val">11</div>
+        <div class="stat-label">คลิปจากช่อง @slapperch</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val yellow">~8 h</div>
+        <div class="stat-label">ความยาว transcript</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">311k</div>
+        <div class="stat-label">ตัวอักษร (หลังทำความสะอาด)</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">3,277</div>
+        <div class="stat-label">ประโยค (หลังเติมวรรคตอน)</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val green">768</div>
+        <div class="stat-label">ตัวอย่างเทรน (instruction pairs)</div>
+      </div>
+    </div>
+    <p class="muted">
+      แต่ละตัวอย่างคือ <code>{"messages":[user, assistant]}</code> — คำพูดจริงของ slapper เป็น assistant reply
+      จับคู่กับ prompt ภาษาไทยแบบสุ่มจากเทมเพลต
+    </p>
+  </section>
+
+  <!-- ─── TRAINING ─── -->
+  <section>
+    <h2><span class="num">3</span>การเทรน</h2>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-val">2.69</div>
+        <div class="stat-label">Loss เริ่มต้น</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val green">1.94</div>
+        <div class="stat-label">Loss สุดท้าย (2 epochs)</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val yellow">3.01 GB</div>
+        <div class="stat-label">Peak VRAM (จาก 4 GB)</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">~22 min</div>
+        <div class="stat-label">เวลาเทรน (92 steps)</div>
+      </div>
+    </div>
+    <div class="loss-wrap">
+      <svg class="loss-chart" viewBox="0 0 780 130">
+        <!-- axes -->
+        <line x1="50" y1="10" x2="50" y2="110" stroke="#2a2a32" stroke-width="1"/>
+        <line x1="50" y1="110" x2="760" y2="110" stroke="#2a2a32" stroke-width="1"/>
+        <!-- y labels -->
+        <text x="42" y="15" class="axis-label" text-anchor="end">2.7</text>
+        <text x="42" y="45" class="axis-label" text-anchor="end">2.4</text>
+        <text x="42" y="75" class="axis-label" text-anchor="end">2.1</text>
+        <text x="42" y="108" class="axis-label" text-anchor="end">1.9</text>
+        <!-- epoch divider -->
+        <line x1="405" y1="10" x2="405" y2="110" stroke="#2a2a32" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="405" y="8" class="axis-label" text-anchor="middle">epoch 1</text>
+        <!-- loss curve  (points mapped from actual training log) -->
+        <polyline
+          points="
+            59,12  118,22  177,35  236,42  295,52
+            354,57  413,60  472,62  531,68
+            590,74  649,76  708,75  760,78
+          "
+          fill="none" stroke="#7c6ef7" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+        <!-- dots at start/end -->
+        <circle cx="59" cy="12" r="4" fill="#7c6ef7"/>
+        <circle cx="760" cy="78" r="4" fill="#4ade80"/>
+        <text x="69" y="10" class="axis-label" fill="#a89cf7">2.69</text>
+        <text x="748" y="73" class="axis-label" fill="#4ade80" text-anchor="end">1.94</text>
+      </svg>
+    </div>
+
+    <div class="callout mt">
+      <span class="callout-icon">🔧</span>
+      <p>
+        <strong>ทำให้พอดี 4 GB VRAM:</strong> 4-bit quantization (bitsandbytes) + gradient checkpointing (Unsloth) +
+        paged_adamw_8bit optimizer (spill ไป system RAM) — จริงๆ ใช้แค่ 3.01 GB ยังมีที่เหลือ
+      </p>
+    </div>
+  </section>
+
+  <!-- ─── COMPARISON ─── -->
+  <section>
+    <h2><span class="num">4</span>ผลลัพธ์ — base vs tuned</h2>
+    <p class="muted" style="margin-bottom:20px">prompt เดียวกัน "วันนี้เล่นเกมอะไรมาบ้างครับ"</p>
+    <div class="compare">
+      <div class="chat-box">
+        <div class="chat-header">
+          <span class="chip base">BASE</span>
+          Typhoon2-3B-Instruct
+        </div>
+        <div class="chat-body">
+          <div class="msg">
+            <div class="msg-label">User</div>
+            <div class="msg-bubble user">วันนี้เล่นเกมอะไรมาบ้างครับ</div>
+          </div>
+          <div class="msg">
+            <div class="msg-label">Assistant</div>
+            <div class="msg-bubble">
+              วันนี้ผมได้ลองเล่นเกมหลายประเภทครับ ได้แก่:
+              <br><br>
+              1. เกมแอคชั่น — ช่วยพัฒนาทักษะ<br>
+              2. เกมวางแผน — ฝึกความคิด<br><br>
+              คุณชอบเกมประเภทไหนครับ? 😊
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="chat-box">
+        <div class="chat-header">
+          <span class="chip tuned">TUNED</span>
+          slapper-style adapter
+        </div>
+        <div class="chat-body">
+          <div class="msg">
+            <div class="msg-label">User</div>
+            <div class="msg-bubble user">วันนี้เล่นเกมอะไรมาบ้างครับ</div>
+          </div>
+          <div class="msg">
+            <div class="msg-label">Assistant</div>
+            <div class="msg-bubble">
+              เออๆ วันนี้ก็มาเล่น Mazebound อ่ะนะครับ เกมเอาชีวิตรอดแบบนี้มันสนุกดี
+              อ่ะตอนนี้กูก็พึ่งได้ประตูวาร์ปมาอ่ะ ดีใจมากเลยเพราะว่ามันเดินทางได้ไกลขึ้น
+              เฮ้ยแต่มอนตีเจ็บมากเว้ยเนี่ย ผมก็ต้องระวังอ่ะ อุ๊ยๆ
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="muted mt">
+      Base model ตอบเป็นผู้ช่วย AI สุภาพ — tuned model พูดเหมือน slapper จริงๆ:
+      <em>เออ/เอ้ย/อ่ะ/กู/เฮ้ย</em>, เล่าเกมมุมมองบุคคลที่ 1, ไม่มีหัวข้อ bullet point
+    </p>
+  </section>
+
+  <!-- ─── HOW TO RUN ─── -->
+  <section>
+    <h2><span class="num">5</span>ลองรันเอง</h2>
+    <p class="muted" style="margin-bottom:20px">
+      ต้องมี GPU CUDA + Python 3.10–3.12 Clone repo แล้วรันตามนี้:
+    </p>
+    <pre><code><span class="comment"># ติดตั้ง</span>
+<span class="cmd">pip</span> install torch --index-url https://download.pytorch.org/whl/cu124
+<span class="cmd">pip</span> install unsloth transformers datasets trl peft bitsandbytes accelerate
+<span class="cmd">pip</span> install yt-dlp youtube-transcript-api google-genai python-dotenv
+
+<span class="comment"># ดึงข้อมูล + เทรน</span>
+<span class="cmd">python</span> scripts/list_videos.py
+<span class="cmd">python</span> scripts/fetch_transcripts.py --target-hours 8
+<span class="cmd">python</span> scripts/clean.py <span class="kw">&amp;&amp;</span> python scripts/restore_punct.py
+<span class="cmd">python</span> scripts/build_dataset.py
+<span class="cmd">python</span> scripts/train.py --epochs 2
+
+<span class="comment"># คุย</span>
+<span class="cmd">python</span> chat.py</code></pre>
+    <div class="callout mt">
+      <span class="callout-icon">📌</span>
+      <p>
+        <strong>ใช้ YouTuber คนอื่นได้</strong> — เปลี่ยน channel ID ใน <code>list_videos.py</code>
+        pipeline ที่เหลือทำงานได้เหมือนเดิม เหมาะกับช่องพูดคนเดียว (vlog, cast, podcast)
+      </p>
+    </div>
+  </section>
+
+  <!-- ─── FOOTER ─── -->
+  <footer>
+    <p>
+      โมเดลพื้นฐาน: <a href="https://huggingface.co/scb10x/llama3.2-typhoon2-3b-instruct" target="_blank">scb10x/llama3.2-typhoon2-3b-instruct</a>
+      · ช่อง: <a href="https://www.youtube.com/@slapperch" target="_blank">@slapperch</a>
+    </p>
+    <p style="margin-top:8px; font-size:12px;">
+      ทำเพื่อการศึกษา/ส่วนตัว · transcript เป็นของผู้สร้างคลิป ·
+      โมเดลนี้เป็น AI เลียนแบบสไตล์ ไม่ใช่ตัวจริง
+    </p>
+  </footer>
+
+</div>
+</body>
+</html>
